@@ -1,0 +1,11 @@
+{
+  "title": "Randomization Collapses the Idle-Start Memory Barrier: Source and Audit Package",
+  "upload_type": "software",
+  "description": "Source, manuscript, proof audit, prior-art audit, and exact-runtime sanity-check materials accompanying the preprint Randomization Collapses the Idle-Start Memory Barrier for Anonymous Dynamic Broadcast.",
+  "creators": [
+    {"name": "Yonezu, Ryutaro", "affiliation": "Independent Researcher"}
+  ],
+  "license": "mit",
+  "keywords": ["anonymous dynamic networks", "distributed algorithms", "broadcast", "randomization", "stabilizing termination", "idle-start", "state complexity", "Las Vegas algorithms"],
+  "version": "v1.0.0"
+}
