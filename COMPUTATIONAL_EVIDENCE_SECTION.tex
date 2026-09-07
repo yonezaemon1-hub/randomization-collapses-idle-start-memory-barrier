@@ -1,0 +1,19 @@
+\section{Computational evidence}\label{sec:computational-evidence}
+
+The Bellman analysis above yields exact integers, so the natural computational check is exact dynamic programming rather than Monte Carlo.  The script \texttt{audit/computational\_evidence.py} reconstructs the integer sequences $Q_j$, $\Delta_k$, and $E_1$ directly from the formulas in the proof and exports a finite runtime curve.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{c|r|r|r}
+$n$ & exact $\mathbb E[T]$ & $\log_2\mathbb E[T]$ & $\mathbb E[T]/2^{n(n+1)/2}$ \\
+\hline
+4 & 602 & 9.234 & 0.5879 \\
+6 & 755610 & 19.527 & 0.3603 \\
+8 & 21246839962 & 34.307 & 0.3092 \\
+10 & 10622132397727898 & 53.238 & 0.2948
+\end{tabular}
+\caption{Exact finite-size adaptive-worst-case expectations for fair-coin BRF.  The normalized ratio approaches the constant $c_0\approx0.288788095$ from the asymptotic theorem.}
+\label{tab:brf-runtime-finite}
+\end{table}
+
+As a frozen consistency gate, the same computation reproduces the previously audited exact values $10,58,602,14106,755610,87665306,21246839962$ for $n=2,\ldots,8$.  The calculation is specific to the causal state-adaptive adversary analyzed in this paper; it is not evidence for a tight oblivious-adversary runtime and does not convert the one-control-bit upper bound into an exact randomized state minimum.
