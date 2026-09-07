@@ -1,0 +1,499 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{caption}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prb}{\mathbb{P}}
+\newcommand{\A}{\mathsf{A}}
+\newcommand{\I}{\mathsf{I}}
+\newcommand{\BRF}{\textsc{BRF}}
+
+\title{\textbf{Randomization Collapses the Idle-Start Memory Barrier\\for Anonymous Dynamic Broadcast}}
+\author{Ryutaro Yonezu\\Independent Researcher}
+\date{September 7, 2026\\\small Preprint -- not peer reviewed}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We study stabilizing broadcast in anonymous, port-indistinguishable, synchronous, 1-interval-connected dynamic networks. Parzych and Daymude proved that every deterministic idle-start algorithm for this task requires $\omega(1)$ local memory, while their \emph{Countdown} algorithm uses $O(\log n)$ memory. Turau later obtained an $O(\log\log n)$ randomized algorithm only in the non-idle-start setting with knowledge of $n$. We show that private randomization changes the idle-start picture qualitatively. Our protocol, \emph{Bernoulli Reactivation Flooding} (\BRF), has exactly two protocol states in the standard broadcast abstraction, uses one non-silent message symbol, requires no knowledge of $n$, and is Las Vegas: it never stabilizes before every node is informed and stabilizes almost surely with finite expected time. Active nodes broadcast and independently remain active with probability $1/2$; idle nodes reactivate after receiving the broadcast. Connectivity makes false extinction impossible: whenever the active set is a nonempty proper subset of the network, at least one idle node is reactivated. Thus silence can occur only after a round in which all nodes are active. Combining this two-state randomized upper bound with the known deterministic $\omega(1)$ lower bound yields a qualitative deterministic--randomized state-complexity separation for idle-start stabilizing broadcast. The memory collapse is not free. Against a causal state-adaptive 1-interval-connectivity adversary, fair-coin \BRF{} has worst-case expected stabilization time
+\[
+  \E[T] \sim c_0\,2^{n(n+1)/2},
+  \qquad
+  c_0=\prod_{r=1}^{\infty}(1-2^{-r})\approx 0.288788095.
+\]
+Hence private randomness removes the deterministic memory barrier while allowing an extreme worst-case time cost. If an arbitrary $B$-bit application payload is modeled explicitly, its $B$ bits of storage are orthogonal to the two-state protocol control analyzed here.
+\end{abstract}
+
+\paragraph{Keywords.}
+Dynamic networks; anonymous broadcast; randomized distributed algorithms; space complexity; stabilizing termination; idle-start; Las Vegas algorithms.
+
+\section{Introduction}
+
+Dynamic networks allow the communication graph to change from round to round. In the classical adversarial model of Kuhn, Lynch, and Oshman, the set of nodes is fixed, rounds are synchronous, and each round's communication graph may change arbitrarily subject to an interval-connectivity condition~\cite{KuhnLynchOshman2010}. The case of 1-interval connectivity requires every instantaneous graph to be connected, while permitting the topology to change completely between consecutive rounds.
+
+Broadcast is one of the most basic tasks in such a network: a designated broadcaster initially carries an information item and must disseminate it to every node. The problem becomes substantially harder when nodes are anonymous, lack port numbers, do not know the network size, and must eventually stop sending. Parzych and Daymude formalized this regime and distinguished \emph{idle-start} algorithms, in which only the broadcaster may initially transmit, from \emph{non-idle-start} algorithms, in which uninformed nodes may transmit from the beginning~\cite{ParzychDaymude2024,ParzychDaymude2026}. For stabilizing termination they proved that every deterministic idle-start algorithm requires $\omega(1)$ local memory and gave the $O(\log n)$-memory \emph{Countdown} algorithm. Their lower bound is explicitly deterministic.
+
+Turau subsequently showed that private randomization can reduce memory to $O(\log\log n)$ in the \emph{non-idle-start} setting, assuming every node knows $n$~\cite{Turau2026}. His state-of-the-art summary still lists the deterministic $O(\log n)$ Countdown bound as the best idle-start result. He also extends termination-detection impossibility results to Monte Carlo and Las Vegas algorithms, but these impossibilities concern the stronger requirement that completion be detected, not stabilizing termination.
+
+This paper gives a two-state randomized idle-start protocol. Each node is either \emph{active} or \emph{idle}. An active node broadcasts in every round and independently decides whether to remain active. An idle node that receives the broadcast becomes active in the next round. This reactivation rule turns the connectivity requirement itself into a safety mechanism: if some but not all nodes are active, connectivity forces at least one idle node to receive the broadcast, so the active population cannot disappear. Silence can therefore occur only after a round in which every node is active, which already certifies that every node is informed.
+
+\paragraph{Contributions.}
+Our main contributions are as follows.
+\begin{enumerate}[leftmargin=1.8em]
+  \item We give a private-coin, idle-start Las Vegas protocol for stabilizing broadcast in anonymous, port-indistinguishable, synchronous 1-interval-connected dynamic networks. In the standard state-counting abstraction it uses exactly two protocol states, one non-silent message symbol, and no knowledge of $n$.
+  \item Together with the deterministic $\omega(1)$ lower bound of Parzych and Daymude, the protocol yields a qualitative deterministic--randomized memory separation: private randomization replaces the deterministic superconstant protocol-state requirement with a one-bit randomized upper bound.
+  \item For the fair-coin protocol, we analyze worst-case expected time against a causal state-adaptive topology adversary. We prove that the optimal adversarial strategy exposes exactly one idle node to the active set in every nonterminal round and derive
+  \[
+      \E[T]\sim c_0 2^{n(n+1)/2}.
+  \]
+  Hence the constant-memory gain can coexist with a $2^{\Theta(n^2)}$ worst-case expected running time.
+\end{enumerate}
+
+The protocol is intentionally simple and resembles infection--recovery processes at the level of local dynamics. We do \emph{not} claim novelty for probabilistic forwarding, epidemic processes, random reactivation, or low-memory randomized information spreading as generic mechanisms. The contribution is the state-complexity consequence of this mechanism in the specific anonymous, port-indistinguishable, adversarially dynamic, idle-start, stabilizing-broadcast model.
+
+\section{Model and Problem}
+
+We follow the anonymous dynamic-broadcast model of Parzych and Daymude~\cite{ParzychDaymude2024,ParzychDaymude2026}. Let $V$ be a fixed set of $n\ge 2$ nodes. Time is divided into synchronous rounds $t=0,1,2,\ldots$. In round $t$, communication is described by a simple undirected graph
+\[
+  G_t=(V,E_t).
+\]
+We assume \emph{1-interval connectivity}: $G_t$ is connected for every $t$. Nodes are anonymous, have no port labels, cannot distinguish or count their current neighbors, and use local reliable broadcast: a transmitting node sends the same message to all current neighbors. State updates may depend on the current state, the received message multiset, and private random bits.
+
+There is a unique broadcaster $b\in V$. In the standard broadcast abstraction, the task is to propagate a fixed information item from $b$ to all nodes; a node is \emph{informed} if it is $b$ or has previously received a message from an informed node. Broadcast is complete when every node is informed. For state-complexity accounting, we therefore treat the information item as the fixed non-silent message symbol $\mathsf{INF}$, exactly as a protocol message type. If an application requires an arbitrary $B$-bit payload $M$, every occurrence of $\mathsf{INF}$ may carry $M$, and informed nodes retain those $B$ payload bits in addition to the protocol state. This orthogonal payload storage is not responsible for any dependence on $n$.
+
+An algorithm is \emph{idle-start} if every non-broadcaster is initially idle. Following Parzych and Daymude, an idle node sends nothing in the next round and does not change state in a round in which it receives no message. An algorithm achieves \emph{stabilizing termination} if every node becomes informed and, after some finite round, every node is forever idle. Stabilizing termination does not require any node to detect or announce that broadcast is complete.
+
+Each node has an independent private random tape, used only to choose randomized transitions; the random tape is not persistent protocol memory. The correctness results hold against any causal 1-interval-connectivity adversary that chooses $G_t$ from the execution history before seeing the private random choices used for the state update at the end of round $t$. Section~\ref{sec:runtime} specializes to a state-adaptive adversary that observes the complete current protocol-state configuration before choosing $G_t$, but not the current-round coin flips.
+
+\section{Bernoulli Reactivation Flooding}
+
+The protocol has one persistent control bit
+\[
+  a_v\in\{\I,\A\},
+\]
+where $\A$ means \emph{active} and $\I$ means \emph{idle}. Initially $a_b=\A$ and $a_v=\I$ for every $v\neq b$.
+
+Fix a survival probability $p\in(0,1)$. The main protocol uses $p=1/2$.
+
+\begin{center}
+\fbox{\begin{minipage}{0.92\linewidth}
+\textbf{Bernoulli Reactivation Flooding (\BRF$(p)$).}
+In each round $t$:
+\begin{enumerate}[leftmargin=1.8em,itemsep=2pt,topsep=3pt]
+  \item Every node with $a_v=\A$ broadcasts $\mathsf{INF}$ (or $\mathsf{INF}(M)$ when an explicit application payload is carried). Every node with $a_v=\I$ is silent.
+  \item Messages are delivered along the edges of $G_t$.
+  \item If $a_v=\A$ at the start of the round, node $v$ ignores received copies for protocol-state purposes and sets $a_v\leftarrow\A$ with probability $p$ and $a_v\leftarrow\I$ with probability $1-p$, independently of all other nodes and rounds.
+  \item If $a_v=\I$ at the start of the round, then $a_v\leftarrow\A$ iff $v$ received at least one copy of $\mathsf{INF}$ in the round; otherwise $a_v\leftarrow\I$.
+\end{enumerate}
+\end{minipage}}
+\end{center}
+
+No counter, identifier, port label, estimate of $n$, or external clock is used. The protocol has exactly two persistent protocol states and a single non-silent message type. An explicit application payload, if present, is carried unchanged with that message and does not alter the control transition rule.
+
+For round $t$, let
+\[
+  S_t=\{v\in V: a_v=\A\text{ at the start of round }t\}
+\]
+be the active set.
+
+\section{Correctness}
+
+We first record a simple invariant and then isolate the cut property that replaces the synchronized countdown used by deterministic idle-start algorithms.
+
+\begin{lemma}[Active nodes are informed]\label{lem:active-informed}
+For every round $t$, every node in $S_t$ is informed.
+\end{lemma}
+
+\begin{proof}
+Initially only the broadcaster is active, so the claim holds. A node can enter the active state only by remaining active from the preceding round or by receiving $\mathsf{INF}$ while idle. The former case preserves informedness; in the latter case the received message comes from an active, hence informed, neighbor by induction. Thus active nodes are informed in every round.\qedhere
+\end{proof}
+
+\begin{lemma}[No false extinction]\label{lem:no-false-extinction}
+If $\varnothing\neq S_t\neq V$, then $S_{t+1}\neq\varnothing$ deterministically, regardless of all coin outcomes in round $t$.
+\end{lemma}
+
+\begin{proof}
+Because $G_t$ is connected and $S_t$ is a nonempty proper subset of $V$, there exists an edge $\{u,v\}\in E_t$ with $u\in S_t$ and $v\in V\setminus S_t$. Node $u$ broadcasts $\mathsf{INF}$ in round $t$, so $v$ receives $\mathsf{INF}$. Since $v$ was idle at the start of the round, the update rule sets $a_v=\A$ for round $t+1$. Thus $S_{t+1}$ is nonempty even if every node in $S_t$ chooses to become idle.\qedhere
+\end{proof}
+
+\begin{corollary}[Silence certifies completion]\label{cor:silence}
+If $S_{t+1}=\varnothing$ for some $t$, then $S_t=V$. Consequently every node is informed before the protocol becomes permanently silent.
+\end{corollary}
+
+\begin{proof}
+The initial active set is nonempty. By Lemma~\ref{lem:no-false-extinction}, a nonempty proper active set cannot transition to the empty set. Hence $S_{t+1}=\varnothing$ implies $S_t=V$. By Lemma~\ref{lem:active-informed}, every node is already informed in round $t$. Once $S_{t+1}=\varnothing$, no node transmits in round $t+1$, so no idle node can reactivate; the empty active set is absorbing.\qedhere
+\end{proof}
+
+We next show that the absorbing state is reached almost surely with finite expectation.
+
+\begin{lemma}[Uniform finite-horizon success event]\label{lem:block-success}
+For every execution history ending in a nonempty active set and every causal sequence of future connected snapshots, the conditional probability that \BRF$(1/2)$ reaches the absorbing empty active set within the next $n$ rounds is at least
+\[
+  q_n=2^{-n(n+1)/2}.
+\]
+More generally, for \BRF$(p)$ the corresponding lower bound is
+\[
+  q_n(p)=p^{n(n-1)/2}(1-p)^n.
+\]
+\end{lemma}
+
+\begin{proof}
+Consider the event that, until the first round whose active set is all of $V$, every currently active node chooses to remain active, and then all $n$ active nodes choose to become idle simultaneously. While the active set is a proper subset of $V$, connectivity guarantees that at least one idle node receives $\mathsf{INF}$ each round. On the chosen event no active node disappears, so the active-set size increases strictly each round until it reaches $n$. This takes at most $n-1$ rounds.
+
+Before reaching $V$, the active-set sizes form a strictly increasing sequence of integers in $\{1,\ldots,n-1\}$. Hence the number of required ``survive'' outcomes is at most
+\[
+  1+2+\cdots+(n-1)=\frac{n(n-1)}2.
+\]
+The final simultaneous extinction requires $n$ ``become idle'' outcomes. Independence of private coins therefore gives probability at least $p^{n(n-1)/2}(1-p)^n$. The event completes within at most $n$ rounds.\qedhere
+\end{proof}
+
+\begin{theorem}[Las Vegas stabilizing broadcast]\label{thm:main}
+For every fixed $p\in(0,1)$, \BRF$(p)$ solves idle-start broadcast with stabilizing termination in every anonymous, port-indistinguishable, synchronous, 1-interval-connected dynamic network. The protocol is Las Vegas: it is always safe, terminates with probability $1$, and has finite expected stabilization time. In the standard broadcast abstraction it uses exactly two persistent protocol states and one non-silent message symbol, and requires no knowledge of $n$. With an explicit $B$-bit application payload, the same protocol uses one control bit plus the $B$ payload bits.
+\end{theorem}
+
+\begin{proof}
+Safety follows from Corollary~\ref{cor:silence}: permanent silence can occur only after every node is informed. By Lemma~\ref{lem:block-success}, conditioned on any nonterminal history, the probability of absorption within the next $n$ rounds is at least $q_n(p)>0$. Therefore, for every integer $r\ge 0$,
+\[
+  \Prb[T>rn]\le (1-q_n(p))^r,
+\]
+where $T$ is the stabilization time. Thus $\Prb[T<\infty]=1$, and
+\[
+  \E[T]\le \frac{n}{q_n(p)}
+  =n\,p^{-n(n-1)/2}(1-p)^{-n}<\infty.
+\]
+The state and message claims are immediate from the protocol description.\qedhere
+\end{proof}
+
+\section{A Deterministic--Randomized Memory Separation}
+
+Parzych and Daymude explicitly restrict their memory lower bounds to deterministic algorithms. In the same anonymous, port-indistinguishable, synchronous, 1-interval-connected idle-start model, their Theorem~7 proves that stabilizing termination requires $\omega(1)$ memory, while Countdown uses $O(\log n)$ memory~\cite{ParzychDaymude2024,ParzychDaymude2026}. Turau's randomized sublogarithmic upper bound applies to non-idle-start algorithms and assumes knowledge of $n$~\cite{Turau2026}.
+
+Theorem~\ref{thm:main} therefore gives a qualitative collapse in protocol-state memory.
+
+\begin{corollary}[Randomization collapses the idle-start memory barrier]\label{cor:separation}
+In anonymous, port-indistinguishable, synchronous 1-interval-connected dynamic networks, deterministic idle-start stabilizing broadcast requires superconstant local memory, whereas private-coin Las Vegas idle-start stabilizing broadcast is possible with two protocol states (one persistent bit), one non-silent message symbol, and no knowledge of $n$.
+\end{corollary}
+
+This separation concerns stabilizing termination, not termination detection. Turau's Theorem~2 proves that no idle-start Monte Carlo or Las Vegas algorithm can solve broadcast with termination detection in this model; Theorem~3 gives a second termination-detection impossibility for non-idle-start algorithms when the number of broadcasters is unknown~\cite{Turau2026}. These impossibilities do not conflict with \BRF{}, because \BRF{} never attempts to detect completion: it only guarantees that communication eventually becomes silent after completion.
+
+\section{Worst-Case Adaptive Running Time for Fair Coins}\label{sec:runtime}
+
+The proof of Theorem~\ref{thm:main} yields only a crude finite expectation. We now show that, for $p=1/2$, an extreme running time is intrinsic against a strong but causal adaptive adversary.
+
+\subsection{Adversary model}
+
+At the start of round $t$, the adversary observes the complete execution history and current active set $S_t$, then chooses a connected graph $G_t$. It does not see the private coin outcomes used for the state update at the end of the current round. This is a causal state-adaptive topology adversary.
+
+Suppose $|S_t|=k<n$. Let $b$ be the number of idle nodes adjacent to at least one active node in $G_t$. Connectivity implies $1\le b\le n-k$, and every such node becomes active deterministically. The $k$ currently active nodes survive independently with probability $1/2$. Hence, conditional on $k$ and $b$,
+\[
+  K_{t+1}=b+X_k,
+  \qquad X_k\sim\mathrm{Bin}(k,1/2),
+\]
+where $K_t=|S_t|$. If $k=n$, then
+\[
+  K_{t+1}=X_n,
+  \qquad X_n\sim\mathrm{Bin}(n,1/2),
+\]
+and state $0$ is absorbing.
+
+Every value $b\in\{1,\ldots,n-k\}$ is realizable by a connected snapshot. In particular, $b=1$ is realized by connecting the active set internally, attaching exactly one idle boundary node to it, and connecting all remaining idle nodes behind that boundary node.
+
+\subsection{Bellman characterization}
+
+Let $E_k$ be the worst-case expected remaining stabilization time from a configuration with $k$ active nodes, with $E_0=0$. The Bellman equations are
+\begin{align}
+E_k
+ &=1+\max_{1\le b\le n-k}
+   2^{-k}\sum_{j=0}^{k}\binom{k}{j}E_{b+j},
+   &&1\le k<n,\label{eq:bellman-k}\\
+E_n
+ &=1+2^{-n}\sum_{j=0}^{n}\binom{n}{j}E_j.\label{eq:bellman-n}
+\end{align}
+
+Consider the \emph{one-frontier adversary} that always chooses $b=1$ for $k<n$. Let $\widehat E_k$ denote its expected remaining time. Define
+\[
+  \Delta_k=\widehat E_k-\widehat E_{k+1},
+  \qquad 1\le k<n.
+\]
+
+\begin{lemma}[Monotonicity under the one-frontier adversary]\label{lem:delta}
+For every $1\le k<n$,
+\[
+  \Delta_k
+   =\sum_{j=0}^{k}\binom{k}{j}Q_j>0,
+  \qquad
+  Q_0=1,
+  \qquad
+  Q_j=\prod_{r=1}^{j}(2^r-1)\quad(j\ge1).
+\]
+Hence $\widehat E_1>\widehat E_2>\cdots>\widehat E_n$.
+\end{lemma}
+
+\begin{proof}
+For $k<n$, the one-frontier recurrence is
+\[
+  \widehat E_k
+  =1+2^{-k}\sum_{j=0}^{k}\binom{k}{j}\widehat E_{j+1}.
+\]
+Subtracting the corresponding recurrence for consecutive states and rearranging yields a triangular recurrence for $\Delta_k$. Applying the binomial inverse to that recurrence gives $Q_0=1$ and
+\[
+  Q_k=(2^k-1)Q_{k-1}.
+\]
+Therefore $Q_k=\prod_{r=1}^{k}(2^r-1)$ and binomial inversion gives
+\[
+  \Delta_k=\sum_{j=0}^{k}\binom{k}{j}Q_j.
+\]
+Every summand is positive. A direct verification of the algebra is included in Appendix~\ref{app:delta}.\qedhere
+\end{proof}
+
+\begin{lemma}[Optimality of one-frontier exposure]\label{lem:optimal-adversary}
+The one-frontier adversary is Bellman-optimal: in every nonterminal state $1\le k<n$, the maximizing choice in \eqref{eq:bellman-k} is $b=1$. Consequently $E_k=\widehat E_k$ for all $k$.
+\end{lemma}
+
+\begin{proof}
+By Lemma~\ref{lem:delta}, $\widehat E_j$ is strictly decreasing in $j$. Hence for every realization of $X_k$ and every $b\ge1$,
+\[
+  \widehat E_{1+X_k}\ge \widehat E_{b+X_k}.
+\]
+Taking expectations shows that $b=1$ maximizes the Bellman right-hand side when the continuation values are $\widehat E_j$. Thus $\widehat E$ satisfies the Bellman optimality equations. Lemma~\ref{lem:block-success} gives a uniform finite-horizon absorption probability under every admissible topology policy, so every policy has finite expected absorption time and the finite Bellman value is unique. Therefore $\widehat E$ equals the worst-case value function $E$.\qedhere
+\end{proof}
+
+\subsection{Exact representation and asymptotics}
+
+The boundary equation at $k=n$ and the differences $\Delta_k$ give
+\begin{equation}\label{eq:E1-exact}
+  E_1
+  =2^n+
+   \sum_{i=1}^{n-1}
+   \Delta_i\left(1+\sum_{x=1}^{i}\binom{n}{x}\right).
+\end{equation}
+The expression is exact. For example it yields
+\[
+  E_1=10,\ 58,\ 602,\ 14106,\ 755610,\ 87665306,\ 21246839962
+\]
+for $n=2,3,\ldots,8$, respectively.
+
+Let
+\[
+  c_0=\prod_{r=1}^{\infty}(1-2^{-r})\approx 0.288788095.
+\]
+Since
+\[
+  Q_k
+  =2^{k(k+1)/2}\prod_{r=1}^{k}(1-2^{-r})
+  \sim c_0\,2^{k(k+1)/2}
+\]
+and the $j=k$ term asymptotically dominates the binomial sum in Lemma~\ref{lem:delta},
+\[
+  \Delta_k\sim c_0\,2^{k(k+1)/2}.
+\]
+In \eqref{eq:E1-exact}, the $i=n-1$ term dominates all preceding terms and its binomial coefficient factor is $2^n-1$. We obtain the following theorem.
+
+\begin{theorem}[Adaptive worst-case expected time]\label{thm:runtime}
+For fair-coin \BRF{} started from a single active broadcaster, against a causal state-adaptive 1-interval-connectivity adversary,
+\[
+  \boxed{
+  \E[T]
+  \sim c_0\,2^{n(n+1)/2}
+  }
+\]
+with $c_0=\prod_{r\ge1}(1-2^{-r})$. In particular,
+\[
+  \E[T]=2^{\Theta(n^2)}.
+\]
+\end{theorem}
+
+Theorem~\ref{thm:runtime} is deliberately separated from the correctness theorem. Correctness and finite expected time hold against arbitrary causal connected topology sequences. The sharper asymptotic identifies the worst case only within the stated state-adaptive adversary model. Determining the tight worst-case running time against oblivious topology schedules remains open.
+
+\section{Related Work}
+
+\paragraph{Anonymous dynamic broadcast.}
+Parzych and Daymude introduced memory lower bounds for terminating broadcast in anonymous synchronous 1-interval-connected networks~\cite{ParzychDaymude2024}; the results were later published in expanded journal form~\cite{ParzychDaymude2026}. Their lower bounds are deterministic. For idle-start stabilizing termination they prove a $\omega(1)$ memory lower bound and give the $O(\log n)$-memory Countdown algorithm. Turau extends the randomized theory~\cite{Turau2026}: his positive result uses $O(\log\log n)$ memory and constant-size messages, but is non-idle-start and assumes knowledge of $n$. Turau's two randomized impossibility theorems concern termination detection, not stabilizing termination. His state-of-the-art table continues to list Countdown as the best idle-start space bound.
+
+\paragraph{Static stateless and randomized flooding.}
+Hussak and Trehan show that Amnesiac Flooding terminates in static connected graphs without persistent node memory~\cite{HussakTrehan2023}. Its forwarding rule depends on which neighbors sent the message in the preceding round, and therefore on per-neighbor/port structure. Austin, Gadouleau, Mertzios, and Trehan prove a uniqueness result for deterministic strictly stateless flooding under related assumptions and, when determinism is relaxed, introduce \emph{Random Flooding}: in each round a node randomly chooses between Amnesiac Flooding and forwarding to all neighbors; the algorithm broadcasts with certainty and terminates almost surely on a static graph~\cite{AustinEtAl2025}. This is the closest randomized low-state flooding result we found. Its fixed-graph, per-neighbor communication structure is unavailable in our port-indistinguishable adversarial dynamic model. \BRF{} instead uses only the fact that every nontrivial active--idle cut has at least one crossing edge in each round.
+
+\paragraph{Randomized broadcasting and memory in other interaction models.}
+Berenbrink, Elsasser, and Sauerwald study memory--communication tradeoffs for randomized broadcasting on regular expanding graphs in variants of the random phone-call model, where nodes select neighbors for pairwise communication~\cite{BerenbrinkElsasserSauerwald2014}. D'Archivio and Vacus study memory-less information spread in a fully mixed population where agents sample random opinions~\cite{DArchivioVacus2024}; Korman and Vacus study self-stabilizing bit dissemination in a complete-population PULL model~\cite{KormanVacus2024}. These works show that low-memory randomization in information spreading is not itself new, but their interaction models differ fundamentally from adversarial 1-interval-connected local broadcast.
+
+\paragraph{One-bit communication in anonymous dynamic networks.}
+Blanc, Di Luna, and Viglietta show that deterministic general computation remains possible in anonymous dynamic networks even when each agent broadcasts only one bit per round, using substantially more algorithmic structure and time~\cite{BlancDiLunaViglietta2026}. Their work concerns deterministic general computation rather than randomized idle-start terminating broadcast with constant protocol state.
+
+\paragraph{Scope of the novelty claim.}
+Probabilistic forwarding, epidemic spreading, infection--recovery processes, and low-memory randomized dissemination all have substantial prior literatures. We do not claim that the local active/idle stochastic process is itself novel. Our claim is model-specific: in the anonymous, port-indistinguishable, adversarially 1-interval-connected, idle-start broadcast setting, private reactivation makes extinction a certificate of global activation and thereby gives a one-bit randomized protocol-memory upper bound where deterministic idle-start algorithms require superconstant memory.
+
+\section{Limitations and Open Problems}
+
+The protocol shows that the deterministic memory barrier is not robust to private randomization, but several limitations are substantial.
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item \textbf{Extreme running time.} The fair-coin protocol has $2^{\Theta(n^2)}$ worst-case expected stabilization time against the causal state-adaptive adversary of Section~\ref{sec:runtime}. The result is therefore primarily a state-complexity separation, not a practical broadcast algorithm.
+
+  \item \textbf{Oblivious-adversary time complexity.} The tight expected running time against an oblivious dynamic topology schedule is not established here. A fixed topology schedule cannot react to the current random active set, so Theorem~\ref{thm:runtime} need not transfer unchanged.
+
+  \item \textbf{Payload accounting.} The two-state statement follows the standard broadcast abstraction used in the memory-complexity literature, where the broadcast information is represented by the protocol message. If an arbitrary $B$-bit application payload must be retained explicitly, informed nodes additionally store those $B$ payload bits. The randomized separation concerns the protocol memory that depends on $n$.
+
+  \item \textbf{No termination detection.} \BRF{} provides stabilizing termination only. Turau proves that idle-start Monte Carlo and Las Vegas algorithms cannot solve broadcast with termination detection in the same anonymous 1-interval-connected setting~\cite{Turau2026}.
+
+  \item \textbf{Time--memory frontier.} The qualitative separation leaves open how much additional randomized protocol memory is necessary and sufficient to recover polynomial or near-linear stabilization time under unknown $n$.
+\end{enumerate}
+
+\section{Conclusion}
+
+Two protocol states suffice to bypass the known deterministic memory barrier for idle-start stabilizing broadcast in anonymous 1-interval-connected dynamic networks. The mechanism is not a compressed countdown: it abandons synchronized timing entirely. Active nodes randomly disappear, idle nodes reactivate after receiving the broadcast, and connectivity prevents the active population from vanishing while any node remains outside it. This cut invariant gives zero-error safety and almost-sure stabilization without knowledge of $n$.
+
+The result exposes a sharp qualitative distinction between deterministic and randomized state complexity. At the same time, the adaptive worst-case analysis shows why the result should not be interpreted as a free improvement: with fair coins, the worst-case expected stabilization time against a causal state-adaptive adversary is asymptotic to $c_0 2^{n(n+1)/2}$. The remaining challenge is to understand the frontier between these extremes---how little randomized memory suffices when meaningful time guarantees are also required.
+
+\appendix
+\section{Algebra for Lemma~\ref{lem:delta}}\label{app:delta}
+
+Under the one-frontier adversary, for $1\le k<n$,
+\begin{equation}\label{eq:frontier-rec}
+  2^k(\widehat E_k-1)
+  =\sum_{j=0}^{k}\binom{k}{j}\widehat E_{j+1}.
+\end{equation}
+Write $\Delta_r=\widehat E_r-\widehat E_{r+1}$. For $j+1\le k+1$,
+\[
+  \widehat E_{j+1}
+  =\widehat E_{k+1}+\sum_{r=j+1}^{k}\Delta_r.
+\]
+Substituting this identity into \eqref{eq:frontier-rec}, cancelling the common $2^k\widehat E_{k+1}$ term, and exchanging the two finite sums gives
+\begin{equation}\label{eq:delta-triangular}
+  \Delta_k
+  =2^k+
+   \sum_{r=1}^{k-1}\Delta_r
+   \left(\sum_{j=0}^{r-1}\binom{k}{j}\right).
+\end{equation}
+This recurrence determines $\Delta_k$ uniquely, beginning with $\Delta_1=2$.
+
+Define $D_0=1$ and, for $k\ge1$,
+\[
+  D_k=\sum_{j=0}^{k}\binom{k}{j}Q_j,
+  \qquad
+  Q_0=1,
+  \qquad
+  Q_j=\prod_{r=1}^{j}(2^r-1).
+\]
+The sequence $(D_k)$ is the binomial transform of $(Q_k)$. Its inverse is
+\[
+  Q_k=\sum_{j=0}^{k}(-1)^{k-j}\binom{k}{j}D_j.
+\]
+Using $Q_k=(2^k-1)Q_{k-1}$ in the inverse transform and the Pascal identity $\binom{k}{j}=\binom{k-1}{j}+\binom{k-1}{j-1}$, one obtains exactly the triangular recurrence \eqref{eq:delta-triangular} with $D_1=2$. Hence $D_k=\Delta_k$ for all $k$, proving Lemma~\ref{lem:delta}.
+
+For the asymptotics, write
+\[
+  Q_k
+  =2^{k(k+1)/2}q_k,
+  \qquad
+  q_k=\prod_{r=1}^{k}(1-2^{-r})\to c_0>0.
+\]
+For every fixed $\ell\ge1$,
+\[
+  \frac{\binom{k}{k-\ell}Q_{k-\ell}}{Q_k}
+  \le
+  \binom{k}{\ell}
+  2^{-\ell k+\ell(\ell+1)/2}
+  \frac{1}{q_k},
+\]
+so the sum of all $j<k$ terms is $o(Q_k)$. Therefore $\Delta_k\sim Q_k\sim c_0 2^{k(k+1)/2}$.
+
+Finally, from the $k=n$ boundary equation,
+\[
+  E_n
+  =2^n+
+   \sum_{i=1}^{n-1}\Delta_i\sum_{x=1}^{i}\binom{n}{x},
+\]
+and $E_1=E_n+\sum_{i=1}^{n-1}\Delta_i$, yielding \eqref{eq:E1-exact}. The ratio of the $i=n-2$ term to the $i=n-1$ term tends to zero at least exponentially in $n$, and earlier terms are smaller still. Thus
+\[
+  E_1\sim (2^n-1)\Delta_{n-1}
+  \sim c_0 2^{n(n+1)/2}.
+\]
+
+\small
+\begin{thebibliography}{99}
+
+\bibitem{BerenbrinkElsasserSauerwald2014}
+P. Berenbrink, R. Els{\"a}sser, and T. Sauerwald,
+``Randomised Broadcasting: Memory vs. Randomness,''
+\emph{Theoretical Computer Science}, vol. 520, pp. 27--42, 2014.
+DOI: \href{https://doi.org/10.1016/j.tcs.2013.08.011}{10.1016/j.tcs.2013.08.011}.
+
+\bibitem{DArchivioVacus2024}
+N. D'Archivio and R. Vacus,
+``On the Limits of Information Spread by Memory-Less Agents,''
+in \emph{38th International Symposium on Distributed Computing (DISC 2024)},
+LIPIcs 319, 18:1--18:21, 2024.
+DOI: \href{https://doi.org/10.4230/LIPIcs.DISC.2024.18}{10.4230/LIPIcs.DISC.2024.18}.
+
+\bibitem{KormanVacus2024}
+A. Korman and R. Vacus,
+``Early Adapting to Trends: Self-Stabilizing Information Spread Using Passive Communication,''
+\emph{Distributed Computing}, vol. 37, pp. 335--362, 2024.
+DOI: \href{https://doi.org/10.1007/s00446-024-00462-8}{10.1007/s00446-024-00462-8}.
+
+\bibitem{AustinEtAl2025}
+H. Austin, M. Gadouleau, G. B. Mertzios, and A. Trehan,
+``Amnesiac Flooding: Easy to Break, Hard to Escape,''
+in \emph{39th International Symposium on Distributed Computing (DISC 2025)},
+LIPIcs 356, 10:1--10:23, 2025.
+DOI: \href{https://doi.org/10.4230/LIPIcs.DISC.2025.10}{10.4230/LIPIcs.DISC.2025.10}.
+
+\bibitem{BlancDiLunaViglietta2026}
+T. Blanc, G. A. Di Luna, and G. Viglietta,
+``Computing in Anonymous Dynamic Networks with One-Bit Communications,''
+arXiv:2607.08358, 2026.
+DOI: \href{https://doi.org/10.48550/arXiv.2607.08358}{10.48550/arXiv.2607.08358}.
+
+\bibitem{HussakTrehan2023}
+W. Hussak and A. Trehan,
+``Termination of Amnesiac Flooding,''
+\emph{Distributed Computing}, vol. 36, pp. 193--207, 2023.
+DOI: \href{https://doi.org/10.1007/s00446-023-00448-y}{10.1007/s00446-023-00448-y}.
+
+\bibitem{KuhnLynchOshman2010}
+F. Kuhn, N. A. Lynch, and R. Oshman,
+``Distributed Computation in Dynamic Networks,''
+in \emph{Proceedings of the 42nd ACM Symposium on Theory of Computing (STOC 2010)},
+pp. 513--522, 2010.
+DOI: \href{https://doi.org/10.1145/1806689.1806760}{10.1145/1806689.1806760}.
+
+\bibitem{ParzychDaymude2024}
+G. Parzych and J. J. Daymude,
+``Memory Lower Bounds and Impossibility Results for Anonymous Dynamic Broadcast,''
+in \emph{38th International Symposium on Distributed Computing (DISC 2024)},
+LIPIcs 319, 35:1--35:18, 2024.
+DOI: \href{https://doi.org/10.4230/LIPIcs.DISC.2024.35}{10.4230/LIPIcs.DISC.2024.35}.
+
+\bibitem{ParzychDaymude2026}
+G. Parzych and J. J. Daymude,
+``Memory Lower Bounds and Impossibility Results for Anonymous Dynamic Broadcast,''
+\emph{Distributed Computing}, vol. 39, no. 3, Article 18, 2026.
+DOI: \href{https://doi.org/10.1007/s00446-026-00511-4}{10.1007/s00446-026-00511-4}.
+
+\bibitem{Turau2026}
+V. Turau,
+``Broadcasts in Anonymous, Dynamic Networks: A New Algorithm and Impossibility Results,''
+in \emph{5th Symposium on Algorithmic Foundations of Dynamic Networks (SAND 2026)},
+LIPIcs 373, 6:1--6:17, 2026.
+DOI: \href{https://doi.org/10.4230/LIPIcs.SAND.2026.6}{10.4230/LIPIcs.SAND.2026.6}.
+
+\end{thebibliography}
+\normalsize
+
+\end{document}
