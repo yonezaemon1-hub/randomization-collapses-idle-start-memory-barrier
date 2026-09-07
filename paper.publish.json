@@ -1,0 +1,12 @@
+{
+  "resource_type": "publication-preprint",
+  "title": "Randomization Collapses the Idle-Start Memory Barrier for Anonymous Dynamic Broadcast",
+  "creators": [{"name": "Yonezu, Ryutaro", "affiliation": "Independent Researcher"}],
+  "version": "v1.0.0",
+  "publication_date": "2026-09-07",
+  "license": "cc-by-4.0",
+  "keywords": ["anonymous dynamic networks", "distributed algorithms", "broadcast", "randomization", "stabilizing termination", "idle-start", "state complexity", "Las Vegas algorithms", "dynamic networks"],
+  "paper_doi": null,
+  "software_doi": null,
+  "github": "https://github.com/yonezaemon1-hub/randomization-collapses-idle-start-memory-barrier"
+}
