@@ -7,6 +7,6 @@
   "license": "cc-by-4.0",
   "keywords": ["anonymous dynamic networks", "distributed algorithms", "broadcast", "randomization", "stabilizing termination", "idle-start", "state complexity", "Las Vegas algorithms", "dynamic networks"],
   "paper_doi": null,
-  "software_doi": null,
+  "software_doi": "10.5281/zenodo.22643729",
   "github": "https://github.com/yonezaemon1-hub/randomization-collapses-idle-start-memory-barrier"
 }
