@@ -94,4 +94,4 @@ GitHub: https://github.com/yonezaemon1-hub/randomization-collapses-idle-start-me
 ## DOI
 
 Paper DOI: pending Zenodo publication.  
-Software/source-package DOI: pending Zenodo GitHub release deposit.
+Software/source-package DOI: **10.5281/zenodo.22643729**
